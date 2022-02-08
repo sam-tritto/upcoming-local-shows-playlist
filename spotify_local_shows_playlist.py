@@ -22,10 +22,11 @@ today = datetime.datetime.today().date().strftime('%Y-%m-%d')
 load_dotenv()
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
+REDIRECT_URI = os.getenv('REDIRECT_URI')
 
 ################################################################################################################
 """
-Connects to website and scrapes a list of urls containing upcoming bands. 
+Connects to website and scrapes a list of urls containing upcoming bands.
 
 Inputs:     Today's date
 Outputs:    A list of raw urls containing band names
@@ -43,15 +44,23 @@ def scrape_bands(todays_date):
     if response.status_code != 200:
         raise Exception("There has been an error in scraping the website, response error code:  ", response.status_code)
 
-    # make some soup
+    # start the soup
     soup = BeautifulSoup(response.text, 'html.parser')
-    raw_urls = soup.findAll('a', '_1cFGVRJP0Z1CIBapvtx7fc')
+    
+    # make some soup
+    link_list = []
+
+    for link in soup.find_all('a', href=True, attrs={'href': re.compile(r"^https://www.bandsintown.com")}):
+        # display the actual urls
+        link_list.append(link.get('href'))
+
+    raw_urls = [link for link in link_list if link.startswith("https://www.bandsintown.com/e/")]
 
     return  raw_urls
 
 ################################################################################################################
 """
-Cleans up the raw data into searchable and unique band names. 
+Cleans up the raw data into searchable and unique band names.
 
 Inputs:     A list of urls containing band names
 Outputs:    Just the band names
@@ -61,21 +70,18 @@ Outputs:    Just the band names
 def process_bands(raw_urls):
     # grab the 'event's near' info from bottom of website
     pattern = re.compile(r"\b\S*-at\b")
-    reg_list = re.findall(pattern , str(raw_urls))
+    reg_list = [re.search(pattern , str(x)).group(0) for x in raw_urls]
 
     # select the link from the original grab
-    for i, b in enumerate(reg_list) :
-        reg_list[i] = b.replace('-at','').replace('-', ' ')
+    reg_list = [x.replace('-at','').replace('-', ' ') for x in reg_list]
 
     # select the band name after the space
     # this should work even for bands that start with numbers!
     pattern = re.compile(r"\s(.*)")
-    for i, b in enumerate(reg_list):
-        reg_list[i] = re.findall(pattern, str(b))
+    reg_list = [re.search(pattern, str(x)).group(0) for x in reg_list]
 
     # get rid of parentheses and commas (and nested lists by default)
-    for i, b in enumerate(reg_list) :
-        reg_list[i] = b[0].replace("'",'').replace(',', '')
+    reg_list = [x.replace("'",'').replace(',', '') for x in reg_list]
 
     # drop duplicates by using a set
     bands = list(set(reg_list))
@@ -84,18 +90,18 @@ def process_bands(raw_urls):
 
 ################################################################################################################
 """
-Authenticates with Spotify and spotipy, then creates a new playlist. 
+Authenticates with Spotify and spotipy, then creates a new playlist.
 
 Inputs:     A list of urls containing band names
 Outputs:    Current user id and current playlist id
 """
 
 
-def authenticate(client_id, secret):
+def authenticate(client_id, secret,redirect_uri):
     # authenticate
     sp = spotipy.Spotify(
         auth_manager=SpotifyOAuth(scope="playlist-modify-public",
-                                redirect_uri="https://www.spotify.com/",
+                                redirect_uri=redirect_uri,
                                 client_id=client_id,
                                 client_secret=secret,
                                 show_dialog=True,
@@ -124,7 +130,7 @@ def grab_track_ids(bands, sp):
             continue
         else:
             for j in range(len(results['tracks']['items'])):
-                if fuzz.partial_ratio(results['tracks']['items'][j]['artists'][0]['name'], bands[i]) > 70:
+                if fuzz.partial_ratio(results['tracks']['items'][j]['artists'][0]['name'], bands[i]) > 80:
                     tracks.append(results['tracks']['items'][j]['id'])
                 else:
                     continue
@@ -180,7 +186,7 @@ if __name__ == '__main__':
         print('Trouble cleaning up band names')
 
     try:
-        user_id, sp = authenticate(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
+        user_id, sp = authenticate(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, REDIRECT_URI)
     except:
         print('Trouble authenticating with Spotify')
 
