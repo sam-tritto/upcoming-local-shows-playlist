@@ -1,0 +1,11 @@
+
+fuzzywuzzy==0.18.0
+spotipy==2.23.0
+requests==2.31.0
+pandas==2.0.2
+google-api-core==2.8.2
+google-auth==1.35.0
+google-cloud-core==2.3.2
+google-cloud-storage==2.9.0
+google-cloud-secret-manager==1.0.1
+protobuf==3.20.1
