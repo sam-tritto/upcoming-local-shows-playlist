@@ -1,8 +1,0 @@
-cron:
-- description: "Weekly ETL script execution"
-  url: /etl
-  schedule: every monday 09:00
-  timezone: America/New_York
-  retry_parameters:
-    min_backoff_seconds: 2.5
-    max_doublings: 5
